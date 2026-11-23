@@ -22,7 +22,7 @@ no game file is modified, and nothing persists after the game closes.**
 Everything that depends on how this particular game build behaves (which graphics API it uses, how it presents,
 which controller API it polls and when) is detected at run time and written to the log; the first launch tells you
 which of the assumptions in [docs/REPORT.md](docs/REPORT.md) hold on your installation. On any build other than
-1.16.100.x the DLL only measures and changes nothing.
+the 1.16.100 release (package `1.16.10004.x`) the DLL only measures and changes nothing.
 
 ## What it does
 

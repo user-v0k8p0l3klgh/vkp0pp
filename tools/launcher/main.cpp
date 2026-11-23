@@ -1,16 +1,17 @@
 // bll-launcher: starts Minecraft with bll.dll loaded before the game's entry point.
 //
 //   bll-launcher            launch the game with BedrockLowLatency
-//   bll-launcher --force    same, on a Minecraft UWP build other than 1.16.100.x
+//   bll-launcher --force    same, on a Minecraft UWP build other than release 1.16.100
 //                           (the DLL then stays in measurement-only mode)
 //   bll-launcher status     show what is installed and where the files are
 //   bll-launcher disable    clear the package debug registration (only needed if
 //                           a launch was interrupted)
 //
-// Mechanism (the one documented for debuggers of packaged apps, and the same
-// one Stonecutter uses): IPackageDebugSettings::EnableDebugging registers this
-// executable as the package's debugger. On activation Windows creates the game
-// process suspended and runs "<this exe> --inject -p <pid> -tid <tid>". That
+// Mechanism (the one Stonecutter uses for the same package family):
+// IPackageDebugSettings::EnableDebugging registers this executable as the
+// package's debugger. On activation Windows creates the game process suspended
+// and runs "<this exe> --inject -p <pid> -tid <tid>"; that argument form is
+// not in the API's documentation and is taken from Stonecutter's source. That
 // instance queues LoadLibraryW(bll.dll) on the suspended main thread and
 // resumes it. The registration is removed again right after activation, so
 // nothing persists: starting the game normally runs it unmodified.
@@ -181,7 +182,7 @@ int launch(bool force) {
     }
     print_game(game);
     if (game.build != BuildClass::Target && !force) {
-        std::printf("\nThis is not Minecraft 1.16.100.x (x64). Nothing was started.\n"
+        std::printf("\nThis is not the Minecraft 1.16.100 release (package 1.16.10004.x, x64). Nothing was started.\n"
                     "Use --force to start it anyway; bll.dll will then only measure and change nothing.\n");
         return 1;
     }

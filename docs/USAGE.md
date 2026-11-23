@@ -3,7 +3,7 @@
 ## Requirements
 
 * Windows 10 (1803 or later) or Windows 11, x64.
-* Minecraft Bedrock Edition **1.16.100.x**, UWP package `Microsoft.MinecraftUWP`, x64, legitimately installed.
+* Minecraft Bedrock Edition **1.16.100** release (package version `1.16.10004.x`, shown by `bll-launcher status`), UWP package `Microsoft.MinecraftUWP`, x64, legitimately installed.
 * For gamepad features: an Xbox-compatible controller, or any controller Windows exposes through
   Windows.Gaming.Input / XInput.
 
@@ -48,7 +48,7 @@ MSVC is not a tested toolchain. The code avoids compiler extensions, but it has 
 What the launcher does, in order:
 
 1. Grants *ALL APPLICATION PACKAGES* read/execute on `bll.dll` (added to the file's existing ACL). The game runs in
-   an AppContainer and cannot load the file otherwise.
+   an AppContainer; according to community documentation and existing injectors it cannot load the file otherwise.
 2. Registers itself as the package's debugger (`IPackageDebugSettings::EnableDebugging`), activates the app, and is
    then started by Windows with the game's suspended main thread. It queues `LoadLibraryW(bll.dll)` on that thread
    and resumes it, so the DLL is in place before the game creates its swap chain.
@@ -83,7 +83,7 @@ Changes take effect at the next launch.
 | `Enabled` | `true` | `false`: the DLL loads and hooks nothing |
 | `EnableLogging` | `true` | Write `bll.log` |
 | `SafeMode` | `true` | If DXGI rejects a modified `Present`, the game's own arguments are used from then on |
-| `AllowUnrecognizedBuild` | `false` | Enable behaviour-changing features on builds other than 1.16.100.x (untested, at your own risk) |
+| `AllowUnrecognizedBuild` | `false` | Enable behaviour-changing features on builds other than the 1.16.100 release (untested, at your own risk) |
 | `Mode` | `2` | Preset 0–5, see below |
 
 ### Presets
@@ -199,8 +199,15 @@ Nothing is installed system-wide: no driver, no service, no registry change, no 
 
 ## Game settings worth testing (not changed by this project)
 
-`options.txt` (`...\LocalState\games\com.mojang\minecraftpe\options.txt`) is reported by community sources to contain
-`gfx_vsync`; whether 1.16.100 reads it, and whether a frame-rate key exists in this version, could not be confirmed.
-Change it with the game closed, one key at a time, and check the `Present: game asked (sync=...)` log line to see
-whether it had any effect. Driver-level features (NVIDIA Low Latency Mode, AMD Anti-Lag) are documented by their
-vendors for Direct3D 11; whether they engage for this UWP title has to be measured, not assumed.
+What community sources say about `options.txt`
+(`...\LocalState\games\com.mojang\minecraftpe\options.txt`), none of it confirmed for 1.16.100:
+
+* `gfx_vsync:0` turns v-sync off. A 2020 comment on MCPE-98861 uses the older spelling `vsync:0`; which key this
+  build reads is unknown, so look at what the file already contains.
+* `gfx_max_framerate` (0 = unlimited) is documented for current versions only; no source ties it to 1.16.x.
+* One guide claims windowed mode adds considerable input lag compared with full screen. Worth a camera test.
+
+Change one key at a time with the game closed, and check the `Present: game asked (sync=...)` log line to see whether
+it had any effect. Driver-level features are documented by their vendors for Direct3D 11 titles (NVIDIA Low Latency
+Mode for DX9/DX11, AMD Anti-Lag for DX11); nothing found says whether they engage for a UWP title, so measure rather
+than assume.

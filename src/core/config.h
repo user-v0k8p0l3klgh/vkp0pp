@@ -13,7 +13,7 @@ struct Config {
     bool logging = true;
     // Any unexpected API result permanently reverts the affected feature to pass-through.
     bool safe_mode = true;
-    // Behaviour-changing features stay off on builds other than 1.16.100.x unless set.
+    // Behaviour-changing features stay off on builds other than the 1.16.100 release unless set.
     bool allow_unrecognized_build = false;
     int mode = 2;
 

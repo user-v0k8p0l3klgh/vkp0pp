@@ -40,12 +40,12 @@ or changing camera smoothing. Those need knowledge of the executable that was no
 | Aspect | What is known | Basis |
 |---|---|---|
 | Package | `Microsoft.MinecraftUWP_8wekyb3d8bbwe`, x64, UWP (AppContainer) | **[S]** Stonecutter targets this family for UWP builds |
-| Version | 1.16.100 released November 2020; Windows package version reported as `1.16.10004.0` | **[D]** release notes for the date, **[C]** for the package number |
-| Renderer | Stable 1.16.100 predates RenderDragon on Windows (stable from 1.16.200); betas of the cycle toggled it | **[D]** 1.16.200 notes; shipping without it in 1.16.100 is the accepted reading, not a quoted statement |
-| Graphics API | Direct3D 11 **[H]**. No public primary source identifying the pre-RenderDragon Windows backend was found | Logged at run time: `graphics backend: ...` |
-| Swap chain | `CreateSwapChainForCoreWindow` **[H]** – a CoreWindow UWP app has no other option except composition swap chains; flip model is mandatory for UWP **[D]** | Logged at run time with the full description |
-| How it presents | Unknown: sync interval, flags, whether `gfx_vsync` is honoured | Logged: `Present: game asked (sync=…, flags=…)` |
-| Controller API | Unknown: Windows.Gaming.Input or XInput | Both are hooked; the log counts calls to each |
+| Version | Release notes posted 16 November 2020 **[D]**; Windows 10 release 17 November, package `Microsoft.MinecraftUWP_1.16.10004.0_x64` **[C]** (wiki, community version database). A second x64 package `1.16.10004.70` is listed and attributed to Xbox One **[C]**; which is the PC client was not confirmed, and the package revision is ignored by the version check | The 1.16.100 notes mention controller improvements to the crafting screen and nothing about the renderer, DirectX or v-sync |
+| Renderer | RenderDragon reached stable Windows 10 in 1.16.200 (8 December 2020) **[D]**. In the 1.16.100 beta cycle it was switched on in 1.16.100.54 and .59 and off again in .55 and .60 **[C]**. That stable 1.16.100 shipped without it is consistent with this and is the accepted reading, but no source states it in those words | Only the release build number is accepted as the target |
+| Graphics API | Direct3D 11 **[H]**. No public statement identifying the pre-RenderDragon Windows backend was found. Consistent with it: Mojang dropped video cards limited to DirectX 10.1 in October 2020 **[D]** | Logged at run time: `graphics backend: ...` |
+| Swap chain | `CreateSwapChainForCoreWindow` **[H]**. For RenderDragon-era UWP builds this is confirmed by Stonecutter's hook **[S]**; for 1.16.100 nothing public covers it. Flip model is what Microsoft's swap-effect guidance requires of UWP apps (not re-verified for this report), so the code checks the swap effect rather than assuming it. Composition swap chains are hooked too | Logged at run time with the full description |
+| How it presents | Unknown for 1.16.100. A report about 1.21.x UWP says the game calls `Present(0, 0)` without tearing flags and ends up capped at twice the refresh rate (MCPE-190050) **[C]**; MCPE-98861 ("Significant input delay on devices with Render Dragon", fix versions 1.16.220.51 beta and 1.20.30) ties the RenderDragon-era lag to v-sync **[C]**. Neither says anything about the older renderer | Logged: `Present: game asked (sync=…, flags=…)` |
+| Controller API | Unknown: no reliable public statement was found for either Windows.Gaming.Input or XInput. XInput is available to UWP apps through `Xinputuap.dll` **[D]** | Both are hooked; the log counts calls to each |
 | Poll timing | Unknown: per frame or per 20 Hz tick | Logged: `polls/frame`, `input_age_ms` |
 | Threading | Unknown | The only assumption made is that `Present` runs on the thread owning the immediate context (needed for `GpuSync` only) |
 
@@ -58,7 +58,7 @@ flags are only added to flip-model swap chains and creation is retried without t
 on a Direct3D 12 device; the relative frame cap and the just-in-time scheduler stay inactive until the refresh period
 has been measured; both controller APIs are hooked and each is inert if unused.
 
-Version handling: the DLL reads its own package identity. Game version 1.16.100.x on x64 enables the configured
+Version handling: the DLL reads its own package identity. Package build 1.16.10004 (game 1.16.100.4) on x64 enables the configured
 features; any other Minecraft UWP build, foreign package or unpackaged process gets measurement-only mode unless
 `AllowUnrecognizedBuild=true`. The launcher additionally refuses non-target builds without `--force`.
 
@@ -86,27 +86,27 @@ the others were read by a delegated source audit and are summarised from its fin
 
 | Project (commit) | Licence | Core idea in the source | What transfers |
 |---|---|---|---|
-| [WinExp/Minecraft-Low-Latency](https://github.com/WinExp/Minecraft-Low-Latency) (`440a0aae3a`) | LGPL-3.0 | GPU time from timestamp queries and fences, median of six frames; waits before the next event poll for `max(0, G·(N+o) − C)·(1+o)`; parks until 0.5 ms before the deadline, then spins. No cap on the wait and no fall-back when the prediction is wrong; the author warns it can reduce frame rate or increase latency | The placement (wait before the input poll) and the idea of not running ahead of the GPU. Implemented differently here: an event query answers "is the previous frame still on the GPU", the wait is capped at 30 ms, and the refresh-locked case uses a learned margin with back-off |
+| [WinExp/Minecraft-Low-Latency](https://github.com/WinExp/Minecraft-Low-Latency) (`440a0aae3a`) | LGPL-3.0 | GPU time G from timestamp queries, N = frames whose fence has not completed, C = CPU time, medians over six frames; waits before the next event poll for `max(0, G·(N+o) − C)·(1+o)` (offset o defaults to 0); parks until 0.5 ms before the deadline, then spins. No explicit CPU/GPU-bound classifier, no cap on the wait and no fall-back when the prediction is wrong; the author warns it can reduce frame rate or increase latency | The placement (wait before the input poll) and the idea of not running ahead of the GPU. Implemented differently here: an event query answers "is the previous frame still on the GPU", the wait is capped at 30 ms, and the refresh-locked case uses a learned margin with back-off |
 | [incend1um3/No-Input-Lag-Tick-Rate](https://github.com/incend1um3/No-Input-Lag-Tick-Rate) (`9ac37b2f69`) | MIT | Runs key handling on a separate 20 Hz clock inside the render loop; rescales block-breaking | Nothing implementable: it needs to call engine key handling. It also changes gameplay timing, which this project does not do |
-| [Kemmlow/inputoptimizer](https://github.com/Kemmlow/inputoptimizer) (`077a42894f`) | LGPL-3.0 | Raw Input on a dedicated thread; events queued and drained at tick start; mouse movement accumulated and applied per frame | Separate acquisition, and "newest analog value per frame, never a replay of old ones". Its queues are unbounded; the latch here is bounded by construction |
+| [Kemmlow/inputoptimizer](https://github.com/Kemmlow/inputoptimizer) (`077a42894f`) | LGPL-3.0-only | Raw Input on a maximum-priority thread; three unbounded queues drained at the 20 Hz tick; mouse movement accumulated and applied per frame; duplicate suppression keyed by key code only, so a fast press/release can collapse | Separate acquisition, and "newest analog value per frame, never a replay of old ones". The latch here is bounded by construction and keeps press and release distinct |
 | [decce6/Ixeris](https://github.com/decce6/Ixeris) (`24b173cace`) | LGPL-3.0 | Moves GLFW event polling to its own thread; main-thread dispatcher; limiter sleeps to 1.1 ms before target and spins, re-syncs when more than a frame late | Limiter shape. Its cross-thread synchronous calls carry a deadlock risk the design here avoids by having no cross-thread calls at all |
-| [Walksy/RawInputBuffer](https://github.com/Walksy/RawInputBuffer) (`c02d9182b8`) | MIT | Mouse-only raw input handling | Nothing for gamepads |
-| [Shikaru0/sdl-input](https://github.com/Shikaru0/sdl-input) (`fe3a6f780d`) | MIT | SDL as alternative input back-end, snapshots per tick | Illustrates the limitation the latch addresses: a snapshot per tick cannot see shorter presses |
-| [TensorF1eld/Input-optimizer-](https://github.com/TensorF1eld/Input-optimizer-) (`f316db6e71`) | no licence file (metadata says LGPL-3.0-only) | Ordered, timestamped event queue; bounded latency samples with P50/P95/P99; ordering and duplicate tests | The reporting shape (percentiles of input age) and the test ideas |
-| [sidit77/perfect_presentation](https://github.com/sidit77/perfect_presentation) (`df992bc55d`) | MIT | Replaces the OpenGL swap with a DXGI flip-discard swap chain created with `ALLOW_TEARING` and `FRAME_LATENCY_WAITABLE_OBJECT`, latency 1; waits on the object at the start of the next frame; tearing flag only with interval 0 | The closest relative of Mode 2, and independent confirmation of the pattern. It does not check tearing support; this project does |
-| [fireboy637/better-vsync-option](https://github.com/fireboy637/better-vsync-option) (`f2aed3409b`) | MIT | Present-mode selection UI | Nothing |
-| [GermanBucket/faster-block-placement](https://github.com/GermanBucket/faster-block-placement) (`2d0d68f5fa`) | MIT | Changes the placement repeat rate | Deliberately not ported: it is a gameplay-rate change, not latency |
+| [Walksy/RawInputBuffer](https://github.com/Walksy/RawInputBuffer) (`c02d9182b8`) | MIT | Mouse only. Despite the name it reads each `WM_INPUT` with `GetRawInputData`, not `GetRawInputBuffer`; deltas in atomics drained per frame | Nothing for gamepads |
+| [Shikaru0/sdl-input](https://github.com/Shikaru0/sdl-input) (`fe3a6f780d`) | MIT | SDL keyboard/mouse state snapshot once per client tick, transitions derived by diffing snapshots. Its key-binding mixin targets a Swing class instead of Minecraft's, so the mod's main effect could not be confirmed from source | Illustrates the limitation the latch addresses: a snapshot per tick cannot see shorter presses |
+| [TensorF1eld/Input-optimizer-](https://github.com/TensorF1eld/Input-optimizer-) (`f316db6e71`) | no licence file (metadata says LGPL-3.0-only); contains decompiled code from the previous project, so its licensing is unclear | Single ordered, timestamped event queue drained per frame; bounded 4096-sample rings with P50/P95/P99; an ordering/duplicate test harness. Its own report notes that it does not measure physical click to visible response | The reporting shape (percentiles of input age) and the test ideas |
+| [sidit77/perfect_presentation](https://github.com/sidit77/perfect_presentation) (`df992bc55d`) | MIT | Replaces the OpenGL swap with a D3D11 flip-discard swap chain (`CreateSwapChainForHwnd`, 2 buffers) created with `ALLOW_TEARING` and `FRAME_LATENCY_WAITABLE_OBJECT`, `IDXGISwapChain2::SetMaximumFrameLatency(1)`; waits on the object at the start of rendering; the same flags on `ResizeBuffers`; `Present(interval, interval == 0 ? ALLOW_TEARING : 0)` | The closest relative of Mode 2 and independent confirmation of the recipe. Two differences here: tearing support is checked first (it sets the flag unconditionally), and the wait sits before the game's input poll rather than after it |
+| [fireboy637/better-vsync-option](https://github.com/fireboy637/better-vsync-option) (`f2aed3409b`) | MIT | Present-mode selection (FIFO, FIFO_RELAXED, MAILBOX, IMMEDIATE) for the Vulkan back-end; latency figures in its README are not backed by measurements in the repository | Nothing |
+| [GermanBucket/faster-block-placement](https://github.com/GermanBucket/faster-block-placement) (`2d0d68f5fa`) | MIT | Sets the right-click placement delay to zero; its README warns of anti-cheat bans | Deliberately not ported: it is a gameplay-rate change, not latency |
 
 ### Controller projects and tools
 
 | Project (commit) | Licence | Finding | Use here |
 |---|---|---|---|
-| [Nekuzaky/better-controller](https://github.com/Nekuzaky/better-controller) (`8eef9709e0`) | MIT | Polls on the 20 Hz client tick and re-applies that sample every frame | A caution: per-tick sampling makes stick input up to 50 ms stale. Whether Bedrock does the same is what `polls/frame` reveals |
-| [isXander/Controlify](https://github.com/isXander/Controlify) (`ec4f067db8`) | LGPL-3.0 | Polls per tick, applies look per frame; response curves and dead zones | Same caution. Its curve handling is not relevant: this project never alters stick values |
-| [WyvernIXTL/gamepadla-plus](https://github.com/WyvernIXTL/gamepadla-plus) (`1b4e254d55`) | MIT | Measures the report rate and jitter visible to the OS | Diagnostic step in TESTING.md. Not a latency measurement |
-| [LordOfMice/hidusbf](https://github.com/LordOfMice/hidusbf) (`8bfc7608d9`) | none, binaries only | Filter driver overriding the USB polling interval | Not recommended: kernel driver, conflicts with Memory Integrity, device-specific |
-| [OpenStickCommunity/GP2040-CE](https://github.com/OpenStickCommunity/GP2040-CE) (`0ae800d627`) | MIT | Firmware: 1 ms HID interval, tight main loop, configurable debounce | Background on what a controller can deliver |
-| [GameTechDev/PresentMon](https://github.com/GameTechDev/PresentMon) (`e580ac87f2`, 2.6.1) | MIT | Presentation telemetry from ETW; input tracking is mouse/keyboard oriented | Cross-check of the DLL's own numbers; `tools/analyze/analyze.py presentmon` reads its CSV |
+| [Nekuzaky/better-controller](https://github.com/Nekuzaky/better-controller) (`8eef9709e0`) | MIT | Polls `glfwGetGamepadState` on the 20 Hz client tick and re-applies that sample every render frame; adds dead-zone rescaling, response curves, a turn boost and optional smoothing; button taps are rising edges between tick snapshots | A caution: per-tick sampling makes stick input up to 50 ms stale and loses taps between ticks. Whether Bedrock does the same is what `polls/frame` reveals |
+| [isXander/Controlify](https://github.com/isXander/Controlify) (`ec4f067db8`) | LGPL-3.0 | Polls SDL state per client tick, applies look per frame from the last tick's value; dead zone and response curve applied to the stick vector's length; no smoothing in the regular look path; "just pressed" is a difference between consecutive tick snapshots | Same caution. Its curve handling is not relevant: this project never alters stick values |
+| [WyvernIXTL/gamepadla-plus](https://github.com/WyvernIXTL/gamepadla-plus) (`1b4e254d55`) | MIT | Busy-polls a moving stick and times successive changes; reports rate, jitter and missed reports. Its README says it does not measure button-to-game latency | Diagnostic step in TESTING.md. Not a latency measurement |
+| [LordOfMice/hidusbf](https://github.com/LordOfMice/hidusbf) (`8bfc7608d9`) | none; binaries only, no source to audit | Per its README: a filter driver to "overclock" USB mice and other devices that patches Microsoft's USB drivers and needs Memory Integrity switched off; it makes no latency claim for gamepads | Not recommended: closed kernel driver, security feature must be disabled, device-specific |
+| [OpenStickCommunity/GP2040-CE](https://github.com/OpenStickCommunity/GP2040-CE) (`0ae800d627`) | MIT | Firmware: 1 ms HID interval, tight main loop, leading-edge debounce (5 ms default) that does not delay the first edge | Background on what a controller can deliver |
+| [GameTechDev/PresentMon](https://github.com/GameTechDev/PresentMon) (`e580ac87f2`, 2.6.1) | MIT | Presentation telemetry from ETW; needs elevation for other processes. Its input device types are mouse and keyboard only, so its click-to-photon columns do not cover a gamepad. Capture of UWP processes is expected (it works on DXGI present events) but was not verified | Cross-check of the DLL's own numbers; `tools/analyze/analyze.py presentmon` reads its default, v1 and v2 CSV headers |
 | [TsudaKageyu/minhook](https://github.com/TsudaKageyu/minhook) | BSD-2-Clause | Inline hooking library used by Stonecutter | Evaluated and not used: every hook needed is a table entry (vtable or import table), which avoids rewriting code and a dependency |
 
 No code from any of these projects is included in this repository.
@@ -119,7 +119,7 @@ No code from any of these projects is included in this repository.
 |---|---|---|---|
 | `IDXGIDevice1::SetMaximumFrameLatency(n)` | Limits how many frames the device may queue; default 3, range 1–16 **[D]** | Per device, any D3D11 swap chain. With a blocking `Present` the wait still happens after rendering | `LowLatencyQueue`. Original value saved and restored; re-applied if changed |
 | `DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT` | Makes the swap chain expose a waitable object signalled when a frame may be started | Flip model only; must be set at creation and cannot be added with `ResizeBuffers`; must be repeated on every `ResizeBuffers` **[D]** | Added in the creation hook when the DLL is loaded early; creation retried without it on failure; repeated in the `ResizeBuffers` hook |
-| `IDXGISwapChain2::SetMaximumFrameLatency` / `GetFrameLatencyWaitableObject` | Per-swap-chain latency and the handle to wait on; default latency 1 **[D]** | Valid only on swap chains created with the flag above – distinct from the device-level call. The handle belongs to the caller | Called only when the flag is present; handle closed when the swap chain is destroyed |
+| `IDXGISwapChain2::SetMaximumFrameLatency` / `GetFrameLatencyWaitableObject` | Per-swap-chain latency and the handle to wait on; default latency 1 **[D]** | Valid only on swap chains created with the flag above, otherwise `DXGI_ERROR_INVALID_CALL` / a null handle **[D]** – distinct from the device-level call. The flag is not supported in exclusive full screen on Direct3D 11. The handle belongs to the caller and must be closed | Called only when the flag is present; handle closed when the swap chain is destroyed |
 | `WaitForSingleObjectEx` on that handle | Blocks until the queue has room; documented to be done before rendering each frame **[D]** | Can stop signalling when the window is occluded or suspended | Called after `Present`; time-out ≥ 50 ms; bypassed for 240 frames after three time-outs |
 | `DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING` + `DXGI_PRESENT_ALLOW_TEARING` | Unsynchronised presentation in windowed flip model | `IDXGIFactory5::CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING)`; flip model; present flag only with sync interval 0; flag repeated on `ResizeBuffers` **[D]** | `AllowTearing`: all four conditions are checked; never sent with a non-zero interval |
 | `Present` / `Present1` sync interval | 0 = no wait, n = wait n vblanks | `DXGI_PRESENT_TEST` presents nothing | `DisableVSync` forces 0. Test presents and failed/occluded presents are never paced or counted |
@@ -128,7 +128,8 @@ No code from any of these projects is included in this repository.
 | `Windows.Gaming.Input.Gamepad.GetCurrentReading` | Snapshot of the gamepad state with a timestamp **[D]** | A snapshot: no event history. Readings are neutral while the app is not focused | Hooked through the `IGamepad` vtable once a gamepad exists; timestamps and values pass through untouched |
 | `XInputGetState` | Snapshot plus a packet number that changes when the state changes | Same limitation; four user indices | Hooked through the import table (normal and delay-load) of the game's own modules |
 | `CreateWaitableTimerExW(CREATE_WAITABLE_TIMER_HIGH_RESOLUTION)` | Timer that does not depend on the global timer resolution (Windows 10 1803+) | Still late by a variable amount | Coarse part of every timed wait; the busy-wait tail is sized from the measured lateness. Falls back to an ordinary timer |
-| `IPackageDebugSettings::EnableDebugging` | Starts a packaged app suspended under a debugger command line | Must be undone with `DisableDebugging` | Launcher; always undone |
+| `IPackageDebugSettings::EnableDebugging` | Documented: enables debugger attach on activation and disables the package's activation time-outs and automatic suspension/termination until `DisableDebugging` **[D]**. That Windows then starts the debugger with `-p <pid> -tid <tid>` on a suspended process is not in that page; it is how Stonecutter's launcher works **[S]** | Must be undone with `DisableDebugging`. Behaviour on this package is untested | Launcher; always undone right after activation |
+| File ACL for *ALL APPLICATION PACKAGES* | Lets an AppContainer process read a file outside its package | Microsoft documents AppContainer file isolation in general; the specific need to grant this group read/execute on an injected DLL is community-documented **[C]** and what Stonecutter does **[S]** | Launcher adds one read/execute entry to the DLL's existing ACL |
 
 Not used on purpose: `timeBeginPeriod` (global side effect), thread priority or MMCSS changes on the game's threads,
 registry or driver settings, anything from the RenderDragon/GDK era that assumes an HWND swap chain.
@@ -261,7 +262,7 @@ process instead, the worker hooks `Present` through a temporary swap chain and a
 | Check | Where | Outcome if it fails |
 |---|---|---|
 | Package family and publisher | DLL, launcher, injector | Measurement only / launcher refuses / injector refuses |
-| Game version 1.16.100.x | DLL, launcher | Measurement only / needs `--force` |
+| Package build 1.16.10004 exactly (game 1.16.100.4) | DLL, launcher | Measurement only / needs `--force`. Betas 1.16.100.54 and .59 used RenderDragon **[C]** and, as far as is known, Windows betas of that time were delivered under the same package name (not verified), so only the release build is accepted, not the version range |
 | x64 | DLL (classification), injector (`IsWow64Process`) | As above |
 | Device is Direct3D 11 | at attach | D3D11 features off, warning |
 | Swap effect is flip model | creation hook | No flags added |
@@ -274,7 +275,7 @@ process instead, the worker hooks `Present` through a temporary swap chain and a
 
 | Environment | State |
 |---|---|
-| Minecraft 1.16.100.x UWP x64, Windows 10/11 | Target. Untested |
+| Minecraft 1.16.100 release (package 1.16.10004.x) UWP x64, Windows 10/11 | Target. Untested |
 | Other Minecraft UWP builds (incl. RenderDragon UWP) | Measurement only. Enabling features is possible and unsupported |
 | Minecraft GDK builds | Not supported; the launcher mechanism does not apply |
 | Direct3D 12 renderer | Detected, D3D11 features off |
@@ -335,6 +336,8 @@ hypothesis, not the result.
 |---|---|
 | No test on Minecraft 1.16.100 | No game copy, no Windows machine with display and controller. The launcher, the start-up APC path, loading inside an AppContainer and the CoreWindow creation hook have never been executed; only the DLL loaded with `LoadLibrary` into the HWND harness has |
 | Renderer, swap chain and controller API of the build are unconfirmed | Public sources do not state them; the log of the first run does |
+| The launch mechanism rests on undocumented behaviour | `EnableDebugging` is documented, but the suspended start and the `-tid` argument the injector relies on are known only from Stonecutter's source, which targets later builds of the same package |
+| Which of the two listed x64 packages (`1.16.10004.0`, `1.16.10004.70`) is the PC client | Community sources disagree; the version check accepts either revision |
 | Camera update timing, smoothing and interpolation | Needs the game's internals. No address, signature or structure was invented to pretend otherwise. If `polls/frame` shows per-tick polling, the largest remaining latency is here and out of reach of this design |
 | Late latching of the stick into an already started frame | Same reason |
 | GPU time is not measured, only "pending or not" | D3D11 has no CPU/GPU clock correlation; the scheduler learns the margin from misses instead |
@@ -368,6 +371,9 @@ Ordered by expected value, then difficulty.
 6. **`RawGameController` hook** for pads that do not surface as `Gamepad`. Easy once a need is shown.
 7. **Camera late-latch.** Only with verified knowledge of the build's view-matrix path, a per-version compatibility
    record and a refusal to run elsewhere. Hard, and the only item that requires reverse engineering.
-8. **Mojang's "Improved Input Response" (1.20.30).** The release notes say the option reduces input latency at the
-   cost of battery life and nothing about how. It cannot be back-ported because it is not known what it is; Modes
-   2 and 4 are an independent attempt at the same goal with documented techniques.
+8. **Mojang's "Improved Input Response" (1.20.30).** The release notes say: "Added a new experimental toggle to Video
+   menu for players on Windows which reduces input latency; enabling this setting will increase battery consumption
+   (MCPE-98861)". Nothing official explains the mechanism. User reports add only circumstantial hints (the option is
+   unavailable with v-sync off; a lighting bug appeared only with it on). It cannot be back-ported because it is not
+   known what it is, and writing `ctrl_improvedInputResponse` into an old `options.txt` does nothing. Modes 2 and 4
+   are an independent attempt at the same goal with documented techniques.

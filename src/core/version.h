@@ -10,6 +10,8 @@ namespace bll {
 
 inline constexpr std::string_view kTargetFamilyName = "Microsoft.MinecraftUWP_8wekyb3d8bbwe";
 inline constexpr std::string_view kTargetPackageName = "Microsoft.MinecraftUWP";
+// Package build of the 1.16.100 release: game version 1.16.100.4.
+inline constexpr uint16_t kTargetPackageBuild = 10004;
 
 struct PackageVersion {
     uint16_t major = 0, minor = 0, build = 0, revision = 0;
@@ -17,7 +19,7 @@ struct PackageVersion {
 };
 
 enum class BuildClass {
-    Target,       // Minecraft UWP x64, game version 1.16.100.x
+    Target,       // Minecraft UWP x64, the 1.16.100 release (game build 1.16.100.4)
     OtherBedrock, // Minecraft UWP package, different game version or architecture
     Foreign,      // some other package
     Unpackaged,   // no package identity (test harness, GDK builds)

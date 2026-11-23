@@ -97,6 +97,14 @@ TEST(version_parses_target_package) {
 
 TEST(version_rejects_other_builds) {
     PackageIdentity id;
+    // Betas of the same cycle used the same package name; 1.16.100.54 ran RenderDragon.
+    CHECK(parse_package_full_name("Microsoft.MinecraftUWP_1.16.10054.0_x64__8wekyb3d8bbwe", id));
+    CHECK(classify_build(id) == BuildClass::OtherBedrock);
+    CHECK(parse_package_full_name("Microsoft.MinecraftUWP_1.16.10060.0_x64__8wekyb3d8bbwe", id));
+    CHECK(classify_build(id) == BuildClass::OtherBedrock);
+    // The package revision is not part of the game version.
+    CHECK(parse_package_full_name("Microsoft.MinecraftUWP_1.16.10004.70_x64__8wekyb3d8bbwe", id));
+    CHECK(classify_build(id) == BuildClass::Target);
     // 1.16.200 is the first stable RenderDragon build on Windows.
     CHECK(parse_package_full_name("Microsoft.MinecraftUWP_1.16.20002.0_x64__8wekyb3d8bbwe", id));
     CHECK(classify_build(id) == BuildClass::OtherBedrock);

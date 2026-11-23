@@ -136,13 +136,13 @@ def cmd_camera(args):
 
 
 PRESENTMON_COLUMNS = [
-    # (label, candidate column names across PresentMon versions)
-    ("frame time", ["MsBetweenPresents", "FrameTime"]),
-    ("displayed frame interval", ["MsBetweenDisplayChange", "DisplayedTime"]),
-    ("time inside Present", ["MsInPresentAPI"]),
-    ("present to display", ["MsUntilDisplayed", "DisplayLatency"]),
-    ("GPU busy", ["MsGPUBusy", "GPUBusy"]),
-    ("GPU latency", ["GPULatency", "MsRenderPresentLatency"]),
+    # (label, candidate column names: default, --v2_metrics and --v1_metrics headers)
+    ("frame time", ["MsBetweenPresents", "FrameTime", "msBetweenPresents"]),
+    ("displayed frame interval", ["MsBetweenDisplayChange", "DisplayedTime", "msBetweenDisplayChange"]),
+    ("time inside Present", ["MsInPresentAPI", "msInPresentAPI"]),
+    ("present to display", ["MsUntilDisplayed", "DisplayLatency", "msUntilDisplayed"]),
+    ("GPU busy", ["MsGPUBusy", "GPUBusy", "msGPUActive"]),
+    ("GPU latency", ["MsGPULatency", "GPULatency", "MsRenderPresentLatency", "msUntilRenderComplete"]),
     ("CPU busy", ["MsCPUBusy", "CPUBusy"]),
 ]
 

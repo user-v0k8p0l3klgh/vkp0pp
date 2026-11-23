@@ -25,7 +25,7 @@ bool parse_u16(std::string_view s, uint16_t& out) {
 
 const char* to_string(BuildClass c) {
     switch (c) {
-    case BuildClass::Target: return "target (Minecraft UWP x64 1.16.100.x)";
+    case BuildClass::Target: return "target (Minecraft UWP x64, release 1.16.100.4)";
     case BuildClass::OtherBedrock: return "other Minecraft UWP build";
     case BuildClass::Foreign: return "foreign package";
     default: return "unpackaged process";
@@ -64,7 +64,10 @@ BuildClass classify_build(const PackageIdentity& id) {
     if (id.name.empty()) return BuildClass::Unpackaged;
     if (!iequals(id.name, kTargetPackageName) || !iequals(id.publisher_id, "8wekyb3d8bbwe")) return BuildClass::Foreign;
     const PackageVersion& v = id.version;
-    const bool target_version = v.major == 1 && v.minor == 16 && v.build / 100 == 100;
+    // Exactly the release build. Betas of the 1.16.100 cycle shipped under the
+    // same package name as far as is known, and some (1.16.100.54, .59) used RenderDragon,
+    // so "any 1.16.100.x" would be too wide.
+    const bool target_version = v.major == 1 && v.minor == 16 && v.build == kTargetPackageBuild;
     return target_version && iequals(id.architecture, "x64") ? BuildClass::Target : BuildClass::OtherBedrock;
 }
 

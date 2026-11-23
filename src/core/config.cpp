@@ -16,7 +16,7 @@ Enabled=true
 EnableLogging=true
 ; Revert a feature to pass-through for the rest of the session on any unexpected API result.
 SafeMode=true
-; Behaviour-changing features are only enabled on package version 1.16.100.x unless this is true.
+; Behaviour-changing features are only enabled on the 1.16.100 release (package 1.16.10004.x) unless this is true.
 AllowUnrecognizedBuild=false
 ; 0 vanilla (measure only)   1 v-sync optimisation      2 low-latency queue
 ; 3 frame pacing             4 just-in-time (experimental) 5 combined
