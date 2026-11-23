@@ -17,6 +17,7 @@
 #include <system_error>
 
 #include "core/log.h"
+#include "diagnostics/crash_log.h"
 #include "platform/package.h"
 #include "runtime.h"
 
@@ -55,7 +56,10 @@ void do_initialize(const char* path_taken) {
         out << kDefaultConfigText;
     }
 
-    if (file_cfg.logging) log_open(dir / L"bll.log");
+    if (file_cfg.logging) {
+        log_open(dir / L"bll.log");
+        crash_log_install(dir / L"crash.log");
+    }
     BLL_INFO("BedrockLowLatency 0.1.0 initialising (%s), data directory %s", path_taken, narrow(dir.wstring()).c_str());
     if (!found) BLL_INFO("no bll.ini found; defaults written and used");
     for (const std::string& w : warnings) BLL_WARN("bll.ini %s", w.c_str());
@@ -161,6 +165,7 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved) {
         // the game without the launcher.
         bll::remove_gamepad_hooks();
         bll::remove_dxgi_hooks();
+        bll::crash_log_remove();
     }
     return TRUE;
 }

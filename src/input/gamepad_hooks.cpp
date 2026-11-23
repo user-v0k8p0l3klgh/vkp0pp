@@ -11,6 +11,7 @@
 // Stick values always come straight from the device read made inside the
 // game's own call; they are never buffered, smoothed or delayed.
 #include <windows.h>
+#include <combaseapi.h>
 #include <roapi.h>
 #include <xinput.h>
 
@@ -223,6 +224,13 @@ bool try_hook_wgi() {
 }
 
 void service_thread(int sampler_hz) {
+    // Keep the process-wide multithreaded apartment alive for the rest of the
+    // process. Without this, this thread's apartment teardown (on RoUninitialize
+    // or thread exit) can release the MTA while the game's Windows.Gaming.Input
+    // objects still live in it. The reference is deliberately never released.
+    CO_MTA_USAGE_COOKIE mta_cookie = nullptr;
+    const HRESULT mta = CoIncrementMTAUsage(&mta_cookie);
+    if (FAILED(mta)) BLL_WARN("CoIncrementMTAUsage failed (0x%08lX)", static_cast<unsigned long>(mta));
     const HRESULT ro = RoInitialize(RO_INIT_MULTITHREADED);
     if (FAILED(ro)) BLL_WARN("RoInitialize failed (0x%08lX); Windows.Gaming.Input hook unavailable", static_cast<unsigned long>(ro));
 
@@ -251,7 +259,8 @@ void service_thread(int sampler_hz) {
             next_sample = now_ns();
         }
     }
-    if (SUCCEEDED(ro)) RoUninitialize();
+    // No RoUninitialize: see the comment at the top of this function.
+    BLL_INFO("gamepad service thread finished (Windows.Gaming.Input hook %s)", wgi_hooked ? "installed" : "not installed");
 }
 
 } // namespace

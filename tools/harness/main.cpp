@@ -46,6 +46,7 @@ struct Options {
     int frames = 600;
     UINT vsync = 1;
     int work_ms = 2;
+    int crash_at = -1; // frame at which to crash on purpose (tests bll.dll's crash log)
 };
 
 HMODULE load_bll(const std::wstring& path) {
@@ -76,6 +77,7 @@ int main() {
         else if (a == L"--frames") opt.frames = _wtoi(value().c_str());
         else if (a == L"--vsync") opt.vsync = static_cast<UINT>(_wtoi(value().c_str()));
         else if (a == L"--work-ms") opt.work_ms = _wtoi(value().c_str());
+        else if (a == L"--crash-at") opt.crash_at = _wtoi(value().c_str());
     }
 
     HMODULE bll = nullptr;
@@ -184,6 +186,15 @@ int main() {
         safe_release(back_buffer);
 
         hr = chain->Present(opt.vsync, 0);
+        if (frame == opt.crash_at) {
+            std::printf("harness: crashing on purpose\n");
+            std::fflush(stdout);
+            // No error dialog: the process must terminate on its own in automated runs.
+            SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+            // A pointer the compiler cannot see through, so this is a real access violation.
+            int* volatile target = nullptr;
+            *target = 1;
+        }
         if (FAILED(hr)) {
             if (failures++ == 0) std::printf("harness: Present failed (0x%08lX) at frame %d\n", static_cast<unsigned long>(hr), frame);
         }

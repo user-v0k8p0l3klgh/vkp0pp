@@ -49,6 +49,26 @@ or changing camera smoothing. Those need knowledge of the executable that was no
 | Poll timing | Unknown: per frame or per 20 Hz tick | Logged: `polls/frame`, `input_age_ms` |
 | Threading | Unknown | The only assumption made is that `Present` runs on the thread owning the immediate context (needed for `GpuSync` only) |
 
+### Observed on a real installation (first user log, 2026-11-23)
+
+The first run on a user's machine (`Microsoft.MinecraftUWP_1.16.10004.0_x64`) replaced several hypotheses with
+observations **[M]**:
+
+| Aspect | Observed |
+|---|---|
+| Graphics API | Direct3D 11, feature level 11_1 |
+| Swap chain | `CreateSwapChainForCoreWindow`, 2560×1332, `B8G8R8A8_UNORM`, 3 buffers, `DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL` |
+| Creation flags from the game | `DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING` already set by the game; no waitable object |
+| How it presents | `Present(0, DXGI_PRESENT_ALLOW_TEARING)` – unsynchronised, so on this system `Present` does not wait for v-sync |
+| Controller API | Imports `XInputGetState` from `xinput9_1_0.dll`; the Windows.Gaming.Input gamepad hook could also be installed |
+| Start-up path | Launcher, APC injection inside the AppContainer and the creation hook all worked; the DLL added the waitable flag and both latency settings succeeded |
+
+That run crashed shortly after the game's first `ResizeBuffers`; the cause was not recorded. Test build 2 adds a crash
+log and fixes one candidate: the controller-hook thread released the process's Windows Runtime apartment, which
+could disconnect the game's own controller objects. Whether that was the cause is not yet confirmed.
+
+The table below is the state before that log.
+
 The unknowns are deliberate: no copy of the game was available and none was downloaded, so nothing about the
 executable is asserted. `bll-probe` reports the same facts statically for an executable the user can read
 (sideloaded installs; Store-installed packages are encrypted at rest).

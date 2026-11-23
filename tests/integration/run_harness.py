@@ -43,16 +43,20 @@ class Suite:
     def path(self, p):
         return "Z:" + str(p).replace("/", "\\") if self.wine else str(p)
 
-    def execute(self, args, cwd, extra_env=None):
+    def execute(self, args, cwd, extra_env=None, timeout=240):
         env = dict(self.env)
         env.update(extra_env or {})
         if self.wine:
             args = ["xvfb-run", "-a", "wine"] + args
         else:
             args = [str(Path(cwd) / args[0])] + args[1:]
-        return subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True, timeout=240)
+        try:
+            return subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired as e:
+            out = e.stdout.decode(errors="replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
+            return subprocess.CompletedProcess(args, -1, out, "timed out")
 
-    def run(self, name, ini, args, with_dll=True, late=False):
+    def run(self, name, ini, args, with_dll=True, late=False, extra_env=None, timeout=240):
         home = self.work / name
         home.mkdir(parents=True, exist_ok=True)
         if ini is not None:
@@ -62,7 +66,9 @@ class Suite:
             cmd += ["--dll", self.path(self.build / "bll.dll")]
         if late:
             cmd += ["--late"]
-        proc = self.execute(cmd + args, self.build / "harness", {"BLL_HOME": self.path(home)})
+        env = {"BLL_HOME": self.path(home)}
+        env.update(extra_env or {})
+        proc = self.execute(cmd + args, self.build / "harness", env, timeout)
         log = home / "bll.log"
         (home / "harness.out").write_text(proc.stdout + proc.stderr)
         return Run(home, proc.returncode, proc.stdout, log.read_text(errors="replace") if log.exists() else "")
@@ -204,6 +210,30 @@ def main():
     r = s.run("disabled", "[General]\nEnabled=false\n", ["--frames", "100", "--work-ms", "2"])
     s.check("no present failures", r.result("present_failures") == 0)
     s.check("nothing hooked", "nothing is hooked" in r.log and "factory hooks" not in r.log)
+
+    print("10. a crash in the host process is recorded")
+    # Under Wine, keep the crash debugger from holding the process open.
+    no_debugger = {"WINEDLLOVERRIDES": s.env.get("WINEDLLOVERRIDES", "") + ";winedbg.exe=d"} if opts.wine else {}
+    r = s.run(
+        "crash",
+        ALLOW + "Mode=2\n",
+        ["--frames", "100", "--work-ms", "2", "--crash-at", "30"],
+        extra_env=no_debugger,
+        timeout=90,
+    )
+    crash_path = r.home / "crash.log"
+    crash = crash_path.read_text(errors="replace") if crash_path.exists() else ""
+    print("        " + "\n        ".join(crash.splitlines()[1:6]))
+    s.check("the process crashed", "crashing on purpose" in r.out)
+    # Wine in some sandboxes reports the null write as an illegal instruction.
+    codes = ("0xC0000005", "0xC000001D") if opts.wine else ("0xC0000005",)
+    s.check(
+        "exception code and faulting module recorded",
+        any(f"exception {c} at bll-harness.exe+0x" in crash for c in codes),
+    )
+    if "exception 0xC0000005" in crash:
+        s.check("access type and address recorded", "write of address 0x0000000000000000" in crash)
+    s.check("call stack recorded", "#01 " in crash)
 
     print()
     print(f"{'all integration checks passed' if s.failed == 0 else str(s.failed) + ' check(s) FAILED'} (logs in {work})")

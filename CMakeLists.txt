@@ -82,7 +82,8 @@ if(WIN32)
         src/input/gamepad_hooks.cpp
         src/platform/hook.cpp
         src/platform/package.cpp
-        src/platform/abi.c)
+        src/platform/abi.c
+        src/diagnostics/crash_log.cpp)
     target_link_libraries(bll PRIVATE bll_core dxgi d3d11 dxguid runtimeobject ole32 user32)
     set_target_properties(bll PROPERTIES PREFIX "" OUTPUT_NAME "bll")
 
