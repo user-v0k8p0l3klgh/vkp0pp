@@ -2,6 +2,8 @@
 //! in-game on/off menu (Overhook + egui). Alt+G opens and closes the menu.
 
 mod feature;
+mod hotkey;
+mod logfile;
 
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -85,6 +87,7 @@ fn alt_down() -> bool {
 }
 
 fn main_thread(_module: overhook::util::Module) {
+    logfile::init();
     std::thread::spawn(feature::start);
 
     if let Err(e) = Overlay::builder()
@@ -93,18 +96,20 @@ fn main_thread(_module: overhook::util::Module) {
         .egui(Menu { open: true })
         .install()
     {
-        eprintln!("winwf: overlay: {e}");
+        log::error!("menu overlay could not be installed: {e}");
         return;
     }
+    log::info!("menu overlay installed; press Alt+G in game");
+    std::thread::spawn(hotkey::run_uwp);
 
-    // Alt+G (VK_G: the G key of the English layout, same physical key on
-    // Cyrillic layouts). Edge-triggered so holding the keys toggles once.
+    // Win32 path (and backup for UWP once overhook's key table is fed).
+    // Edge-triggered so holding the keys toggles once.
     let mut held = false;
     loop {
         std::thread::sleep(Duration::from_millis(10));
         let combo = overhook::input::is_key_down(VK_G) && alt_down();
         if combo && !held {
-            overhook::toggle();
+            hotkey::toggle_menu("keys");
         }
         held = combo;
     }

@@ -320,7 +320,6 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 [[package]]
 name = "overhook"
 version = "0.1.0"
-source = "git+https://github.com/qcountel/overhook?rev=722c43fdfddc1234d0c2bb286f831c19eb19bee8#722c43fdfddc1234d0c2bb286f831c19eb19bee8"
 dependencies = [
  "egui",
  "log",
@@ -702,6 +701,7 @@ dependencies = [
 name = "winwf"
 version = "1.0.0"
 dependencies = [
+ "log",
  "overhook",
  "windows",
 ]

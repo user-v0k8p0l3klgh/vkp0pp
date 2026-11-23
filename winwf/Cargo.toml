@@ -13,11 +13,18 @@ crate-type = ["cdylib"]
 harness = []
 
 [dependencies]
-overhook = { git = "https://github.com/qcountel/overhook", rev = "722c43fdfddc1234d0c2bb286f831c19eb19bee8" }
+log = "0.4"
+# qcountel/overhook @ 722c43f, plus a fix for a null-original race when the
+# Present hook is enabled (see vendor/overhook/src/hooks/mod.rs::hook)
+overhook = { path = "vendor/overhook" }
 
 [dependencies.windows]
 version = "0.62"
 features = [
+    "ApplicationModel_Core",
+    "Foundation",
+    "System",
+    "UI_Core",
     "Win32_Foundation",
     "Win32_System_LibraryLoader",
     "Win32_System_Memory",

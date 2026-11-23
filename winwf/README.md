@@ -7,6 +7,17 @@ Inject it the same way as before.
 - The menu shows **Feature: ON / OFF** and a button to switch it.
 - Closing the menu (Alt+G or ×) never changes the feature state. The feature
   starts ON, like the original.
+- The menu is a small window drawn over the game, near the top-left corner.
+  While it is open the game gets no mouse or keyboard input.
+
+## Troubleshooting
+
+Everything is logged to `winwf.log` in the game's temp folder. For Minecraft
+that is
+`%LOCALAPPDATA%\Packages\Microsoft.MinecraftUWP_8wekyb3d8bbwe\AC\Temp\winwf.log`.
+Healthy lines: `feature: ready`, `menu overlay installed`,
+`Alt+G: listening on the game window (UWP)`, and after the first Alt+G
+`Alt+G (UWP): menu shown` and `Dx11 renderer ready` (or Dx12).
 
 ## How it works
 
@@ -17,7 +28,14 @@ the feature (screen open, input, tick). Their vtable slots are re-pointed to
 small gates that jump either to the original module (ON) or straight to the
 game's own function (OFF). The fourth hook (screen teardown) only resets the
 module's state and stays active. The menu is drawn with
-[Overhook](https://github.com/qcountel/overhook) (egui).
+[Overhook](https://github.com/qcountel/overhook) (egui), vendored in
+`vendor/overhook` at 722c43f with one fix: the original Present is stored
+before the hook is enabled (it was stored after, so a frame drawn in between
+jumped to address 0 and crashed the game).
+
+Minecraft is a UWP app, so Alt+G is caught on the game window's own UI thread
+(`CoreDispatcher.AcceleratorKeyActivated`, see `src/hotkey.rs`); a
+`GetAsyncKeyState` poller covers normal Win32 hosts.
 
 ## Build (Linux)
 

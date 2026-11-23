@@ -124,8 +124,14 @@ mod harness {
 
 pub fn start() {
     match run() {
-        Ok(()) => set_phase(Phase::Ready),
-        Err(e) => set_phase(Phase::Failed(e)),
+        Ok(()) => {
+            log::info!("feature: ready, on/off switch installed");
+            set_phase(Phase::Ready)
+        }
+        Err(e) => {
+            log::error!("feature: {e}");
+            set_phase(Phase::Failed(e))
+        }
     }
 }
 
