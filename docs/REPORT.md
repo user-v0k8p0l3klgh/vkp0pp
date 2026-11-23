@@ -203,7 +203,7 @@ rendering and `Present`.
 
 There are no cross-thread calls, no unbounded queues and no blocking of input acquisition behind presentation. The
 sampler thread exists only because measurement justified it: in the integration test a once-per-frame poll saw
-25–55 of ~132 scripted 5 ms taps **[M]**.
+23 of 154 scripted 5 ms taps on Windows **[M]**.
 
 ### Failure handling
 
@@ -305,12 +305,19 @@ Method and full tables are in [TESTING.md](TESTING.md). Summary of the evidence 
 flaw during development: the first just-in-time scheduler probed into a missed refresh about once per hundred frames
 indefinitely, because it had no memory of *why* it missed. The learned margin replaced it.
 
-**Integration [M]** – `bll.dll` in the Direct3D 11 harness under Wine: all nine scenarios pass with zero failed
-presents. With scripted 5 ms taps at a ~60 FPS poll rate the application saw 25–55 of ~132 taps without the latch
-and 131–133 of 132–134 with it; trigger pulls 93–95 of 95–96; stick values at most 1 ms old. At a 50 FPS cap the
-interval between frame starts was 20.000 ms at the median, 1st and 99th percentile. Wine has no waitable swap chain
-and no real vblank, so Mode 2's central mechanism ran only through its fall-back there; the CI job on Windows
-exercises it against the real DXGI runtime.
+**Integration [M]** – `bll.dll` in the Direct3D 11 harness, run in CI on a Windows Server 2022 machine (real DXGI
+runtime, WARP rasteriser) and under Wine: all nine scenarios pass with zero failed presents. On Windows the waitable
+swap chain was created through the hook, its latency set to 1 and its object waited on; added creation flags were
+repeated on `ResizeBuffers`; a swap chain created before the DLL was loaded was adopted through a temporary
+composition swap chain. With scripted 5 ms taps the application's once-per-frame poll saw 23 of 154 taps without the
+latch and 138 of 138 with it; trigger pulls 97 of 97; stick values 0 ms old. At a 25 FPS cap the interval between
+frame starts was 40.000 ms at the median, 39.810 ms at the 1st and 40.190 ms at the 99th percentile. The same suite
+caught a wrong diagnosis during development: taps lost at a 32 Hz poll rate were first attributed to a starved
+sampler thread; the cause was the tap rate exceeding what one transition per poll can convey (poll rate ÷ 2 taps per
+second), which is a property of the latch, now documented.
+
+These runs have no physical display, no physical controller, an HWND instead of a CoreWindow swap chain, and no
+AppContainer. They establish that the hooks work against the real DXGI runtime, not what they gain.
 
 **Model [Sim]** – 60 Hz, v-sync, game much faster than the display: input-poll-to-vblank 66.7 ms with the default
 queue, 33.3 ms with device latency 1, 16.7 ms with a waitable swap chain, 7.7 ms median with just-in-time start at
@@ -326,7 +333,7 @@ hypothesis, not the result.
 
 | Problem | Why it is open |
 |---|---|
-| No test on Minecraft 1.16.100 | No game copy, no Windows machine with display and controller. The start-up path (APC before the entry point, AppContainer file access, CoreWindow swap chain) has only been exercised in pieces |
+| No test on Minecraft 1.16.100 | No game copy, no Windows machine with display and controller. The launcher, the start-up APC path, loading inside an AppContainer and the CoreWindow creation hook have never been executed; only the DLL loaded with `LoadLibrary` into the HWND harness has |
 | Renderer, swap chain and controller API of the build are unconfirmed | Public sources do not state them; the log of the first run does |
 | Camera update timing, smoothing and interpolation | Needs the game's internals. No address, signature or structure was invented to pretend otherwise. If `polls/frame` shows per-tick polling, the largest remaining latency is here and out of reach of this design |
 | Late latching of the stick into an already started frame | Same reason |
@@ -334,7 +341,7 @@ hypothesis, not the result.
 | `display_ms` semantics under tearing and composed flip | Frame statistics are loosely specified there; cross-check with PresentMon |
 | Windows.Gaming.Input hook needs a connected gamepad to find the vtable | Retried every 500 ms; a pad's first readings before the hook are simply not counted |
 | `RawGameController` and other pad APIs | Not hooked |
-| Wine cannot exercise waitable swap chains or composition swap chains | Covered only by the Windows CI job and, ultimately, by real hardware |
+| No test with a physical display | Waitable swap chain and frame statistics ran on a CI machine without a monitor; vblank timing, the just-in-time scheduler and `display_ms` are untested against real refresh behaviour |
 | MSVC build | Untested |
 | Unloading the DLL at run time | Hooks are restored, threads are not joined; the supported way to disable is not to load it |
 

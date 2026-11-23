@@ -115,7 +115,7 @@ Changes take effect at the next launch.
 | Key | Effect | Conditions and limits |
 |---|---|---|
 | `OptimizeGamepad` | Install the gamepad hooks (needed for all input statistics and for the latch) | The Windows.Gaming.Input hook is installed once a gamepad is connected |
-| `BufferButtonTransitions` | Sampler thread plus transition latch: a tap that starts and ends between two game polls is reported as pressed for one poll and released on the next | Cannot recover a tap shorter than the sampler period or one the controller itself never reported. A recovered tap's *release* is seen one poll later than it happened; normal presses are not delayed. Pending transitions are dropped after 250 ms without a game poll |
+| `BufferButtonTransitions` | Sampler thread plus transition latch: a tap that starts and ends between two game polls is reported as pressed for one poll and released on the next | Cannot recover a tap shorter than the sampler period or one the controller itself never reported. A recovered tap's *release* is seen one poll later than it happened; normal presses are not delayed. One transition is conveyed per game poll, so at most (poll rate ÷ 2) taps per second per button get through; beyond that taps are merged, never invented. Pending transitions are dropped after 250 ms without a game poll |
 | `SamplerHz` | 125–2000, default 1000 | Sampling faster than the controller reports gains nothing |
 | `TriggerPressThreshold` / `TriggerReleaseThreshold` | Hysteresis used to treat a trigger pull as a tap (0.5 / 0.3) | Only decides which pulls are *replayed*; trigger values otherwise pass through unchanged |
 

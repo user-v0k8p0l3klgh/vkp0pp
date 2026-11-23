@@ -9,18 +9,32 @@ record of what *has* been verified.
 |---|---|---|---|
 | 66 unit tests | `tests/`, run natively with ASan + UBSan and as a Windows binary | The algorithms behave as specified: latch loses and invents nothing, pacer keeps its grid, scheduler backs off, parsers reject malformed input | Anything about Windows or the game |
 | Virtual-time latency model | `tests/sim.h`, `tests/governor_tests.cpp` | Under the *documented* DXGI queue semantics the modes order as expected | That a real compositor, driver or this game behaves like the model |
-| Integration suite | `tests/integration/run_harness.py` | `bll.dll` hooks a live Direct3D 11 process correctly: creation flags, `Present`, `ResizeBuffers`, late attach, fall-backs, controller path | Display latency. The harness is not Minecraft |
+| Integration suite | `tests/integration/run_harness.py`, run in CI on Windows and under Wine | `bll.dll` hooks a live Direct3D 11 process correctly: creation flags, waitable object, `Present`, `ResizeBuffers`, late attach, fall-backs, controller path | Display latency (no physical display). The harness is not Minecraft, uses an HWND rather than a CoreWindow swap chain, and is not started through the launcher |
 
-Results of the integration suite under Wine 9.0 (software rasteriser, virtual framebuffer):
+Results of the integration suite, from the CI run on commit `40cff1c`. "Windows" is a GitHub-hosted Windows Server
+2022 runner using the real DXGI runtime with the WARP software rasteriser; "Wine" is Wine 9.0 on a virtual
+framebuffer. Neither has a physical display or controller: the controller is the scripted `xinput1_4.dll`.
 
-| Check | Result |
-|---|---|
-| 5 ms button taps seen by a once-per-frame poll at ~60 FPS, no DLL | 25–55 of ~132 (three runs) |
-| Same with `BufferButtonTransitions=true` | 131–133 of 132–134 |
-| 5 ms trigger pulls with the latch | 93–95 of 95–96 |
-| Age of the stick value handed to the application with the latch on | ≤ 1 ms |
-| Frame-start interval at `TargetFPS=50` | median 20.000 ms, p1 20.000 ms, p99 20.000 ms (n = 299) |
-| Failed `Present` calls across all nine scenarios | 0 |
+| Check | Windows (real DXGI) | Wine |
+|---|---|---|
+| 5 ms button taps seen by a once-per-frame poll, no DLL | 23 of 154 | 23 of 81 |
+| Same with `BufferButtonTransitions=true` | 138 of 138 | 80 of 80 |
+| 5 ms trigger pulls with the latch | 97 of 97 | 57 of 57 |
+| Age of the stick value handed to the application, latch on | 0 ms | ≤ 1 ms |
+| Frame-start interval at `TargetFPS=25` (median / p1 / p99) | 40.000 / 39.810 / 40.190 ms | 40.000 / 40.000 / 40.000 ms |
+| Waitable swap chain created, `IDXGISwapChain2::SetMaximumFrameLatency(1)`, object acquired and waited on | yes | not available in Wine (fall-back path taken) |
+| Creation flags repeated on `ResizeBuffers` | yes | yes |
+| Late attach (Present hooked through a temporary swap chain, game chain adopted) | yes, via a composition swap chain | yes, via a hidden-window swap chain |
+| Failed `Present` calls across all nine scenarios | 0 | 0 |
+
+Local Wine runs during development delivered 97–100 % of taps with the latch. The remaining misses were not traced
+individually; one per run is inherent to the test (a tap still being replayed when the run ends).
+
+**A limit this test exposed.** A polled interface conveys at most one transition per poll, so the latch can deliver
+at most *poll rate ÷ 2* taps per second per button. The first Windows run had the harness polling at ~32 Hz with taps
+every 50 ms (20 per second): the latch delivered 196 of 221 and collapsed the rest, as designed (bounded replay,
+never a stuck button). The scripted taps are now 120 ms apart. For a game polling at 60 Hz the limit is 30 taps per
+second per button, beyond what a hand can do; at a 20 Hz poll it would be 10 per second.
 
 Model output (60 Hz, v-sync on, 3 ms CPU + 2 ms GPU per frame; **a model, not a measurement**):
 

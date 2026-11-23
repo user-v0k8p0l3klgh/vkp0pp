@@ -13,9 +13,9 @@ no game file is modified, and nothing persists after the game closes.**
 
 | | |
 |---|---|
-| Builds | MinGW-w64 (cross-compiled on Linux and natively with MSYS2), warning-free with `-Werror` |
-| Unit tests | 66 tests of the timing, input, configuration and PE logic; native with ASan/UBSan and as a Windows binary |
-| Integration tests | `bll.dll` loaded into a real Direct3D 11 process (the bundled harness): hooks, fall-backs, frame pacing, controller path |
+| Builds | MinGW-w64, cross-compiled on Linux and natively with MSYS2 (both in CI), warning-free with `-Werror` |
+| Unit tests | 66 tests of the timing, input, configuration and PE logic; on Linux with ASan/UBSan and on Windows |
+| Integration tests | `bll.dll` loaded into a real Direct3D 11 process (the bundled harness), in CI on Windows (real DXGI runtime) and under Wine: waitable swap chain, creation flags, `ResizeBuffers`, late attach, frame pacing, controller path |
 | **Tested against Minecraft 1.16.100** | **No.** No copy of the game and no Windows machine with a display and a controller were available during development |
 | Measured latency improvement in the game | **None claimed.** [docs/TESTING.md](docs/TESTING.md) is the protocol to measure it |
 
