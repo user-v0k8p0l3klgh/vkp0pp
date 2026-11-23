@@ -229,6 +229,7 @@ void service_thread(int sampler_hz) {
     WaitBackend& backend = system_wait_backend();
     const Ticks period = kNsPerSec / sampler_hz;
     bool wgi_hooked = false;
+    bool boosted = false;
     Ticks next_wgi_try = 0;
     Ticks next_sample = now_ns();
 
@@ -241,6 +242,14 @@ void service_thread(int sampler_hz) {
         const bool latch = g_latch_enabled.load(std::memory_order_relaxed);
         if (wgi_hooked && !latch) break; // nothing left to do on this thread
 
+        if (latch && !boosted) {
+            // The sampler does microseconds of work per millisecond but must not
+            // be starved by render workers: a tap it sleeps through is lost.
+            // (Measured: on a CPU-saturated machine it missed 6 % of 5 ms taps
+            // at normal priority.)
+            SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+            boosted = true;
+        }
         if (latch && sample_active_pads(now)) {
             next_sample += period;
             now = now_ns();
