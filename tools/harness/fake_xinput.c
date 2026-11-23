@@ -10,13 +10,16 @@
  *     the harness can tell how old the analog value it received is.
  *
  * The taps are much shorter than a frame, so a game-style once-per-frame poll
- * misses most of them. */
+ * misses most of them. They are also spaced far enough apart that an
+ * application polling as slowly as 20 times per second can still be shown
+ * every one: a polled interface cannot convey more than one transition per
+ * poll, i.e. at most (poll rate / 2) taps per second. */
 #include <windows.h>
 #include <xinput.h>
 
 #define FAKE_TAP_MS 5
-#define FAKE_TAP_PERIOD_MS 50
-#define FAKE_PULL_PERIOD_MS 70
+#define FAKE_TAP_PERIOD_MS 120
+#define FAKE_PULL_PERIOD_MS 170
 
 static LONGLONG g_start, g_freq;
 

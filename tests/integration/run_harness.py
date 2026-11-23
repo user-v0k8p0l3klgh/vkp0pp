@@ -103,7 +103,7 @@ def main():
         subprocess.run(["xvfb-run", "-a", "wine", "wineboot", "-i"], env=s.env, capture_output=True, timeout=600)
 
     print("1. harness alone (no DLL), 60 fps-like loop: once-per-frame polling loses short taps")
-    r = s.run("baseline", None, ["--frames", "400", "--work-ms", "16"], with_dll=False)
+    r = s.run("baseline", None, ["--frames", "600", "--work-ms", "16"], with_dll=False)
     s.check("harness runs without the DLL", r.exit_code == 0)
     base_seen, base_emitted = r.result("taps_seen"), r.result("taps_emitted")
     print(f"        taps seen without the latch: {base_seen} of {base_emitted}")
@@ -131,7 +131,7 @@ def main():
     r = s.run(
         "latch",
         ALLOW + "Mode=0\n[Input]\nBufferButtonTransitions=true\n" + DIAG,
-        ["--frames", "400", "--work-ms", "16"],
+        ["--frames", "600", "--work-ms", "16"],
     )
     seen, emitted = r.result("taps_seen"), r.result("taps_emitted")
     pulls_seen, pulls = r.result("pulls_seen"), r.result("pulls_emitted")
@@ -144,22 +144,22 @@ def main():
     s.check("stick values are at most 2 ms old", 0 <= age <= 2)
     s.check("XInput import was redirected", "1 XInputGetState import slot(s) redirected" in r.log)
 
-    print("4. frame pacing at 50 FPS")
-    r = s.run("pacing", ALLOW + "Mode=3\n[Rendering]\nTargetFPS=50\n" + DIAG, ["--frames", "400", "--work-ms", "5"])
+    print("4. frame pacing at 25 FPS")
+    r = s.run("pacing", ALLOW + "Mode=3\n[Rendering]\nTargetFPS=25\n" + DIAG, ["--frames", "300", "--work-ms", "5"])
     s.check("no present failures", r.result("present_failures") == 0)
     intervals = sorted(r.frame_start_intervals())
     if intervals:
         median = statistics.median(intervals)
         p1, p99 = intervals[len(intervals) // 100], intervals[len(intervals) * 99 // 100]
         print(f"        frame start interval: median {median:.3f} ms, p1 {p1:.3f}, p99 {p99:.3f}, n={len(intervals)}")
-        s.check("median frame start interval is 20.00 ms +- 0.05", abs(median - 20.0) <= 0.05)
+        s.check("median frame start interval is 40.00 ms +- 0.05", abs(median - 40.0) <= 0.05)
         if opts.wine:
-            s.check("p1..p99 of the frame start interval within +-1 ms", p1 >= 19.0 and p99 <= 21.0)
+            s.check("p1..p99 of the frame start interval within +-1 ms", p1 >= 39.0 and p99 <= 41.0)
         else:
-            # On a machine that cannot always finish a frame in 20 ms (a CI VM
+            # On a machine that cannot always finish a frame in 40 ms (a CI VM
             # rendering in software) late frames are followed by shortened ones
             # to keep the grid, so only the share of on-grid frames is asserted.
-            on_grid = sum(1 for v in intervals if abs(v - 20.0) <= 1.0) / len(intervals)
+            on_grid = sum(1 for v in intervals if abs(v - 40.0) <= 1.0) / len(intervals)
             print(f"        frame starts within +-1 ms of the grid: {on_grid * 100:.0f}%")
             s.check("at least 80% of frame starts are on the grid", on_grid >= 0.8)
     else:
