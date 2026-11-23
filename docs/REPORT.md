@@ -67,7 +67,7 @@ That run crashed shortly after the game's first `ResizeBuffers`; the cause was n
 log and fixes one candidate: the controller-hook thread released the process's Windows Runtime apartment, which
 could disconnect the game's own controller objects. Whether that was the cause is not yet confirmed.
 
-The table below is the state before that log.
+The first table in this section is the state before that log.
 
 The unknowns are deliberate: no copy of the game was available and none was downloaded, so nothing about the
 executable is asserted. `bll-probe` reports the same facts statically for an executable the user can read
