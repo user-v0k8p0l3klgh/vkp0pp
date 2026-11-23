@@ -37,7 +37,9 @@ hit-registration and aim "feel", and third-party shaders that stopped working wh
    **and** translate protocol 419 for a 1.16.100 client to connect at all.
 3. **Multiversion server software that targets 419 exists, but it is niche:** `helix-bedrock/multiversion`
    (in development), archived PocketMine multiversion plugins, and Nukkit forks ([search evidence][helix-mv]). [V]
-   Whether any *active PvP server* accepts 1.16.100 today is **[?]**.
+   Whether any *active PvP server* accepts 1.16.100 today is **[?]**. A web search on 2026-11-23 found no public
+   server advertising 1.16.100 support; server lists show current versions only (e.g. 26.63). That does not prove
+   none exist, because 1.16.100 communities often advertise only on Discord.
 4. **Xbox Live sign-in from a 2020 client in 2026** is **[?]**. Servers with `online-mode` require an
    Xbox-signed login chain.
 
