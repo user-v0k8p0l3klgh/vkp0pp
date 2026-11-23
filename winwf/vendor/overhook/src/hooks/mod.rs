@@ -54,7 +54,24 @@ pub(crate) unsafe fn hook(target: usize, detour: usize, name: &str, orig_out: &A
 
 /// Removes every hook and waits (up to 2 s) until no thread is inside a
 /// detour any more.
+/// Logs (once per hook) inline hooks that something else overwrote.
+pub(crate) fn check() {
+    static REPORTED: Mutex<Vec<usize>> = Mutex::new(Vec::new());
+    let targets = TARGETS.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let mut reported = REPORTED.lock().unwrap_or_else(|e| e.into_inner());
+    for t in targets {
+        // MinHook writes `jmp rel32` (E9), or a short jump (EB) to a hot-patch area
+        let first = unsafe { *(t as *const u8) };
+        if first != 0xE9 && first != 0xEB && !reported.contains(&t) {
+            reported.push(t);
+            log::warn!("overhook: inline hook at {} was overwritten", dxgi::describe(t));
+        }
+    }
+    dxgi::check_vtables();
+}
+
 pub(crate) fn unhook_all() {
+    dxgi::restore_vtables();
     let targets = std::mem::take(&mut *TARGETS.lock().unwrap_or_else(|e| e.into_inner()));
     for t in targets {
         unsafe {

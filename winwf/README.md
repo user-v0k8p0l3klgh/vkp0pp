@@ -16,8 +16,13 @@ Everything is logged to `winwf.log` in the game's temp folder. For Minecraft
 that is
 `%LOCALAPPDATA%\Packages\Microsoft.MinecraftUWP_8wekyb3d8bbwe\AC\Temp\winwf.log`.
 Healthy lines: `feature: ready`, `menu overlay installed`,
-`Alt+G: listening on the game window (UWP)`, and after the first Alt+G
-`Alt+G (UWP): menu shown` and `Dx11 renderer ready` (or Dx12).
+`vtable entries redirected`, `Alt+G: listening on the game window (UWP)`,
+`first Present call`, and after Alt+G `menu shown`, `Dx11 renderer ready`
+(or Dx12) and `menu check: OK`. When the menu does not show, the
+`menu check` line says whether the game's frames reach the overlay at all,
+and `was overwritten` / `changed by something else` lines name hooks that
+other software replaced. The `modules loaded` line lists overlays and other
+tools running inside the game.
 
 ## How it works
 
@@ -29,9 +34,20 @@ small gates that jump either to the original module (ON) or straight to the
 game's own function (OFF). The fourth hook (screen teardown) only resets the
 module's state and stays active. The menu is drawn with
 [Overhook](https://github.com/qcountel/overhook) (egui), vendored in
-`vendor/overhook` at 722c43f with one fix: the original Present is stored
-before the hook is enabled (it was stored after, so a frame drawn in between
-jumped to address 0 and crashed the game).
+`vendor/overhook` at 722c43f with these changes:
+
+- The original Present is stored before the hook is enabled (it was stored
+  after, so a frame drawn in between jumped to address 0 and crashed the game).
+- Besides the inline hook on `IDXGISwapChain::Present` / `Present1` /
+  `ResizeBuffers[1]`, the matching entries of the swap-chain vtables in
+  `dxgi.dll` are redirected too. If other software overwrites the inline hook,
+  the game's calls through the vtable still reach the overlay (detours call
+  the MinHook trampoline, so nothing runs twice).
+- The swap chains are probed in more variants (blt, flip, factory2, composition,
+  every IDXGISwapChainN interface) and every distinct entry is hooked.
+- Renderer creation is retried after a failure, DX11 shaders use SM 4.0, and
+  each step is logged (first Present, renderer, first overlay frame), plus a
+  watchdog for overwritten hooks.
 
 Minecraft is a UWP app, so Alt+G is caught on the game window's own UI thread
 (`CoreDispatcher.AcceleratorKeyActivated`, see `src/hotkey.rs`); a
@@ -57,6 +73,8 @@ x86_64-w64-mingw32-gcc -O1 -o /tmp/run/harness.exe tests/harness.c -lpsapi
 x86_64-w64-mingw32-gcc -O1 -o /tmp/run/d3dhost.exe tests/d3dhost.c -ld3d11 -ldxgi -luser32 -lgdi32
 cd /tmp/run && wine harness.exe        # hook routing ON / OFF / ON
 DISPLAY=:99 wine d3dhost.exe           # menu, Alt+G, button click (screenshot with markers)
+DISPLAY=:99 wine d3dhost.exe clobber   # same, after another "tool" overwrites the Present hook
+DISPLAY=:99 wine d3dhost.exe mm winwf_test.dll clobber   # injected by manual mapping
 ```
 
 Never ship a `--features harness` build: it exports test controls.

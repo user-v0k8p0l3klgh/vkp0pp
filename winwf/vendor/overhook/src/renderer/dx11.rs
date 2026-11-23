@@ -15,10 +15,65 @@ use windows::Win32::Graphics::Direct3D::*;
 use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
 use windows::Win32::Graphics::Dxgi::*;
-use windows::core::s;
+use windows::core::{Interface, s};
+
+/// Flip-sequential swap chains made through `IDXGIFactory2` (the way UWP
+/// games create theirs): composition (no window) and HWND.
+pub(crate) fn dummy_factory2_swap_chains(hwnd: HWND) -> Result<Vec<(&'static str, IDXGISwapChain)>> {
+    let mut device = None;
+    unsafe {
+        D3D11CreateDevice(
+            None,
+            D3D_DRIVER_TYPE_HARDWARE,
+            HMODULE::default(),
+            D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+            None,
+            D3D11_SDK_VERSION,
+            Some(&mut device),
+            None,
+            None,
+        )
+        .or_else(|_| {
+            D3D11CreateDevice(
+                None,
+                D3D_DRIVER_TYPE_WARP,
+                HMODULE::default(),
+                D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                None,
+                D3D11_SDK_VERSION,
+                Some(&mut device),
+                None,
+                None,
+            )
+        })?;
+    }
+    let device: ID3D11Device = device.ok_or(crate::Error::NoGraphicsApi)?;
+    let factory: IDXGIFactory2 = unsafe { CreateDXGIFactory2(DXGI_CREATE_FACTORY_FLAGS(0)) }?;
+    let desc = DXGI_SWAP_CHAIN_DESC1 {
+        Width: 64,
+        Height: 64,
+        Format: DXGI_FORMAT_B8G8R8A8_UNORM,
+        SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+        BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
+        BufferCount: 2,
+        Scaling: DXGI_SCALING_STRETCH,
+        SwapEffect: DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+        ..Default::default()
+    };
+    let mut out = Vec::new();
+    match unsafe { factory.CreateSwapChainForComposition(&device, &desc, None) } {
+        Ok(sc) => out.push(("dx11 composition flip", sc.cast()?)),
+        Err(e) => log::debug!("overhook: dx11 composition probe failed: {e}"),
+    }
+    match unsafe { factory.CreateSwapChainForHwnd(&device, hwnd, &desc, None, None) } {
+        Ok(sc) => out.push(("dx11 factory2 hwnd flip-sequential", sc.cast()?)),
+        Err(e) => log::debug!("overhook: dx11 factory2 hwnd probe failed: {e}"),
+    }
+    Ok(out)
+}
 
 /// Throw-away device + swap chain used to read the DXGI vtable.
-pub(crate) fn dummy_swap_chain(hwnd: HWND) -> Result<IDXGISwapChain> {
+pub(crate) fn dummy_swap_chain(hwnd: HWND, effect: DXGI_SWAP_EFFECT) -> Result<IDXGISwapChain> {
     let desc = DXGI_SWAP_CHAIN_DESC {
         BufferDesc: DXGI_MODE_DESC {
             Format: DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -29,7 +84,7 @@ pub(crate) fn dummy_swap_chain(hwnd: HWND) -> Result<IDXGISwapChain> {
         BufferCount: 2,
         OutputWindow: hwnd,
         Windowed: true.into(),
-        SwapEffect: DXGI_SWAP_EFFECT_FLIP_DISCARD,
+        SwapEffect: effect,
         ..Default::default()
     };
     let mut last = None;
@@ -89,6 +144,7 @@ impl Dx11Renderer {
     pub fn new(device: ID3D11Device) -> Result<Self> {
         unsafe {
             let context = device.GetImmediateContext()?;
+            log::info!("overhook/dx11: device feature level {:?}", device.GetFeatureLevel());
             let blobs = shader::compile_all(false)?;
             let vs_bytes = shader::blob_bytes(&blobs.vs);
             let ps_bytes = shader::blob_bytes(&blobs.ps);

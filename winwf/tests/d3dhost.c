@@ -2,6 +2,8 @@
 // and clicks the on/off button, writing marker files so a script can screenshot
 // each state.
 //   x86_64-w64-mingw32-gcc -O1 -o d3dhost.exe tests/d3dhost.c -ld3d11 -ldxgi -luser32 -lgdi32
+//   wine d3dhost.exe                 (LoadLibrary winwf_test.dll)
+//   wine d3dhost.exe mm winwf.dll    (manual-map, like many injectors)
 
 #define COBJMACROS
 #include <windows.h>
@@ -9,6 +11,8 @@
 #include <d3d11.h>
 #include <stdio.h>
 #include "fakemc.h"
+#include "manualmap.h"
+#include <string.h>
 
 static ID3D11Device *dev;
 static ID3D11DeviceContext *ctx;
@@ -65,10 +69,9 @@ static void mark(const char *name) {
     frames(1500); // screenshot window
 }
 
-static void (*set_enabled)(int);
 
 
-int main(void) {
+int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     WNDCLASSW wc = {0};
     wc.lpfnWndProc = DefWindowProcW;
@@ -94,10 +97,24 @@ int main(void) {
     frames(500);
 
     if (!fake_mc_setup()) { printf("layout\n"); return 2; }
-    HMODULE w = LoadLibraryW(L"winwf_test.dll");
+    // "clobber": after injection, put Present's original first bytes back, as
+    // another overlay / hooking tool might; the vtable route must still work
+    int clobber = argc > 1 && !strcmp(argv[argc - 1], "clobber");
+    unsigned char *present = (unsigned char *)sc->lpVtbl->Present, saved[16];
+    memcpy(saved, present, sizeof saved);
+    // "mm <dll>": inject like a manual-mapping injector; default: LoadLibrary
+    void *w = (argc > 2 && !strcmp(argv[1], "mm")) ? mm_load_a(argv[2]) : (void *)LoadLibraryW(L"winwf_test.dll");
     if (!w) { printf("load failed\n"); return 2; }
-    set_enabled = (void (*)(int))GetProcAddress(w, "winwf_set_enabled");
     frames(2500);
+    if (clobber) {
+        DWORD old;
+        VirtualProtect(present, sizeof saved, PAGE_EXECUTE_READWRITE, &old);
+        memcpy(present, saved, sizeof saved);
+        VirtualProtect(present, sizeof saved, old, &old);
+        FlushInstructionCache(GetCurrentProcess(), present, sizeof saved);
+        printf("clobbered the inline Present hook\n");
+        frames(3500); // let the watchdog notice
+    }
 
     mark("1_hidden");
     alt_g(); frames(700);

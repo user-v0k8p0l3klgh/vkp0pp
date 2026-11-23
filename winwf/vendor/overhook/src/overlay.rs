@@ -9,7 +9,7 @@ use crate::renderer::{self, Renderer};
 use std::cell::Cell;
 use std::ffi::c_void;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::Dxgi::IDXGISwapChain;
@@ -138,7 +138,7 @@ impl OverlayBuilder {
                 factory: Some(factory),
                 backend: None,
                 renderer: None,
-                renderer_failed: false,
+                renderer_retry_at: None,
                 swap_chain: 0,
                 last_present: Instant::now(),
                 hwnd: HWND::default(),
@@ -180,7 +180,8 @@ struct State {
     factory: Option<Factory>,
     backend: Option<Box<dyn UiBackend>>,
     renderer: Option<Box<dyn Renderer>>,
-    renderer_failed: bool,
+    /// after a failed creation: when to try again (failures can be transient)
+    renderer_retry_at: Option<Instant>,
     swap_chain: usize,
     last_present: Instant,
     hwnd: HWND,
@@ -198,6 +199,26 @@ struct State {
 static STATE: Mutex<Option<RenderThreadOnly<State>>> = Mutex::new(None);
 static INSTALLED: AtomicBool = AtomicBool::new(false);
 static VISIBLE: AtomicBool = AtomicBool::new(true);
+static PRESENTS: AtomicU64 = AtomicU64::new(0);
+static DRAWN: AtomicU64 = AtomicU64::new(0);
+
+/// Number of hooked `Present` calls so far (0 = the hook never fired).
+pub fn present_count() -> u64 {
+    PRESENTS.load(Ordering::Relaxed)
+}
+
+/// Logs hooks that other software has overwritten since installation.
+/// Cheap; call it every few seconds.
+pub fn check_hooks() {
+    if INSTALLED.load(Ordering::Acquire) {
+        crate::hooks::check();
+    }
+}
+
+/// Number of frames the overlay has drawn into so far.
+pub fn drawn_frames() -> u64 {
+    DRAWN.load(Ordering::Relaxed)
+}
 static API: AtomicU8 = AtomicU8::new(0);
 
 /// A different swap chain is only adopted after the current one has not
@@ -288,6 +309,9 @@ pub(crate) fn on_present(raw: *mut c_void) {
 }
 
 fn present_inner(raw: *mut c_void) {
+    if PRESENTS.fetch_add(1, Ordering::Relaxed) == 0 {
+        log::info!("overhook: first hooked Present");
+    }
     let Ok(mut guard) = STATE.try_lock() else { return };
     let Some(RenderThreadOnly(st)) = guard.as_mut() else {
         return;
@@ -304,8 +328,20 @@ fn present_inner(raw: *mut c_void) {
         log::debug!("overhook: drawing on swap chain {raw:?}");
         st.swap_chain = raw as usize;
         st.renderer = None;
-        st.renderer_failed = false;
+        st.renderer_retry_at = None;
         st.hwnd = swap_chain_window(swap_chain);
+        if let Ok(d) = unsafe { swap_chain.GetDesc() } {
+            log::info!(
+                "overhook: swap chain {}x{} {:?} buffers={} effect={:?} flags={:#x} window={:?}",
+                d.BufferDesc.Width,
+                d.BufferDesc.Height,
+                d.BufferDesc.Format,
+                d.BufferCount,
+                d.SwapEffect,
+                d.Flags,
+                st.hwnd.0
+            );
+        }
         if st.hwnd.0.is_null() {
             log::debug!("overhook: swap chain has no window; searching the process windows");
         }
@@ -326,7 +362,8 @@ fn present_inner(raw: *mut c_void) {
         return;
     }
 
-    if st.renderer.is_none() && !st.renderer_failed {
+    if st.renderer.is_none() && st.renderer_retry_at.is_none_or(|t| Instant::now() >= t) {
+        st.renderer_retry_at = None;
         match renderer::create(swap_chain, st.apis) {
             Ok(Some(r)) => {
                 log::info!("overhook: {:?} renderer ready", r.api());
@@ -334,10 +371,17 @@ fn present_inner(raw: *mut c_void) {
                 st.renderer = Some(r);
                 st.replay = true;
             }
-            Ok(None) => return, // e.g. DX12 queue not seen yet
+            Ok(None) => {
+                // e.g. DX12 queue not seen yet
+                static ONCE: AtomicBool = AtomicBool::new(false);
+                if !ONCE.swap(true, Ordering::Relaxed) {
+                    log::warn!("overhook: no renderer for this swap chain yet (device is neither usable DX11 nor DX12)");
+                }
+                return;
+            }
             Err(e) => {
-                log::error!("overhook: cannot create renderer: {e}");
-                st.renderer_failed = true;
+                log::error!("overhook: cannot create renderer (retrying in 3 s): {e}");
+                st.renderer_retry_at = Some(Instant::now() + Duration::from_secs(3));
                 return;
             }
         }
@@ -398,9 +442,22 @@ fn present_inner(raw: *mut c_void) {
         st.replay = false;
     }
 
-    if let Err(e) = renderer.render(swap_chain, &st.draw) {
-        log::error!("overhook: render failed, renderer will be re-created: {e}");
-        st.renderer = None;
+    match renderer.render(swap_chain, &st.draw) {
+        Ok(()) => {
+            if !st.draw.cmds.is_empty() && DRAWN.fetch_add(1, Ordering::Relaxed) == 0 {
+                log::info!(
+                    "overhook: first overlay frame drawn ({} draw calls, {} vertices, {}x{})",
+                    st.draw.cmds.len(),
+                    st.draw.vertices.len(),
+                    bw,
+                    bh
+                );
+            }
+        }
+        Err(e) => {
+            log::error!("overhook: render failed, renderer will be re-created: {e}");
+            st.renderer = None;
+        }
     }
 }
 

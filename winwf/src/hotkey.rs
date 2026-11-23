@@ -38,7 +38,32 @@ pub fn toggle_menu(source: &str) {
         return;
     }
     overhook::toggle();
-    log::info!("Alt+G ({source}): menu {}", if overhook::is_visible() { "shown" } else { "hidden" });
+    let shown = overhook::is_visible();
+    log::info!(
+        "Alt+G ({source}): menu {} (game frames seen: {}, overlay frames drawn: {}, api: {:?})",
+        if shown { "shown" } else { "hidden" },
+        overhook::present_count(),
+        overhook::drawn_frames(),
+        overhook::active_api()
+    );
+    if shown {
+        // one follow-up line answers "why is nothing on screen"
+        std::thread::spawn(|| {
+            let (p0, d0) = (overhook::present_count(), overhook::drawn_frames());
+            std::thread::sleep(Duration::from_secs(2));
+            let (p, d) = (overhook::present_count() - p0, overhook::drawn_frames() - d0);
+            if !overhook::is_visible() {
+                return;
+            }
+            if p == 0 {
+                log::error!("menu check: the game presented no frames through the hook in 2 s (Present hook not firing)");
+            } else if d == 0 {
+                log::error!("menu check: {p} game frames in 2 s but no overlay frame drawn (renderer problem, see lines above)");
+            } else {
+                log::info!("menu check: OK, {d} overlay frames drawn in 2 s ({p} game frames)");
+            }
+        });
+    }
 }
 
 fn on_key(args: &AcceleratorKeyEventArgs) -> windows::core::Result<()> {

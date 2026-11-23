@@ -100,13 +100,19 @@ fn main_thread(_module: overhook::util::Module) {
         return;
     }
     log::info!("menu overlay installed; press Alt+G in game");
+    logfile::log_modules();
     std::thread::spawn(hotkey::run_uwp);
 
     // Win32 path (and backup for UWP once overhook's key table is fed).
     // Edge-triggered so holding the keys toggles once.
     let mut held = false;
+    let mut ticks: u32 = 0;
     loop {
         std::thread::sleep(Duration::from_millis(10));
+        ticks = ticks.wrapping_add(1);
+        if ticks % 300 == 0 {
+            overhook::check_hooks(); // every ~3 s
+        }
         let combo = overhook::input::is_key_down(VK_G) && alt_down();
         if combo && !held {
             hotkey::toggle_menu("keys");

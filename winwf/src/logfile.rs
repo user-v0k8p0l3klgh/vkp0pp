@@ -46,3 +46,26 @@ pub fn init() {
         log::info!("winwf {} loaded, log: {}", env!("CARGO_PKG_VERSION"), path.display());
     }
 }
+
+/// Lists the DLLs loaded in the game: overlays and other hooking tools show up here.
+pub fn log_modules() {
+    use windows::Win32::Foundation::HMODULE;
+    use windows::Win32::System::ProcessStatus::{K32EnumProcessModules, K32GetModuleBaseNameW};
+    use windows::Win32::System::Threading::GetCurrentProcess;
+    let mut mods = [HMODULE::default(); 512];
+    let mut need = 0u32;
+    let process = unsafe { GetCurrentProcess() };
+    if !unsafe { K32EnumProcessModules(process, mods.as_mut_ptr(), size_of_val(&mods) as u32, &mut need) }.as_bool() {
+        return;
+    }
+    let count = (need as usize / size_of::<HMODULE>()).min(mods.len());
+    let names: Vec<String> = mods[..count]
+        .iter()
+        .map(|&m| {
+            let mut buf = [0u16; 260];
+            let n = unsafe { K32GetModuleBaseNameW(process, Some(m), &mut buf) } as usize;
+            String::from_utf16_lossy(&buf[..n])
+        })
+        .collect();
+    log::info!("{} modules loaded: {}", names.len(), names.join(", "));
+}

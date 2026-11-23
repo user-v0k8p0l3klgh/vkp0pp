@@ -62,7 +62,8 @@ pub use draw::{BlendMode, DrawCmd, DrawData, Filter, TextureId, TextureUpdate, V
 pub use error::Error;
 pub use input::{InputBlocking, InputEvent, MouseButton};
 pub use overlay::{
-    GraphicsApi, Overlay, OverlayBuilder, active_api, eject, is_installed, is_visible, set_visible, toggle,
+    GraphicsApi, Overlay, OverlayBuilder, active_api, check_hooks, drawn_frames, eject, is_installed, is_visible, present_count,
+    set_visible, toggle,
 };
 
 #[cfg(feature = "egui")]

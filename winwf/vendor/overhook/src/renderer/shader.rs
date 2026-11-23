@@ -96,7 +96,8 @@ fn compile(entry: PCSTR, target: PCSTR, dx12: bool) -> Result<ID3DBlob> {
 
 pub(crate) fn compile_all(dx12: bool) -> Result<Blobs> {
     Ok(Blobs {
-        vs: compile(s!("vs_main"), s!("vs_5_0"), dx12)?,
-        ps: compile(s!("ps_main"), s!("ps_5_0"), dx12)?,
+        // SM 4.0 for DX11: also runs on feature level 10_x devices
+        vs: compile(s!("vs_main"), if dx12 { s!("vs_5_0") } else { s!("vs_4_0") }, dx12)?,
+        ps: compile(s!("ps_main"), if dx12 { s!("ps_5_0") } else { s!("ps_4_0") }, dx12)?,
     })
 }
