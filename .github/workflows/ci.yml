@@ -1,9 +1,14 @@
 name: CI
 
 on:
+  # Every branch is built on push; the results also show on its pull request.
   push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
+
+# One run per branch: a newer push supersedes the run in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   linux:
