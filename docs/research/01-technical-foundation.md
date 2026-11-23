@@ -44,7 +44,35 @@ hit-registration and aim "feel", and third-party shaders that stopped working wh
    Xbox-signed login chain.
 
 **Implication:** a client's value depends on having somewhere to use it. This must be settled before
-anything else (see the open question at the end).
+anything else.
+
+### 2.1 Target server: BreadixWorld (`play.breadix.net:19132`)
+
+Chosen by the project owner on 2026-11-23. Findings:
+
+| Finding | Evidence | Conf. |
+|---|---|---|
+| Still answers old-transport (RakNet) status pings; advertises 1.26.60, "BreadixCore", ~90 players | Status ping from this workspace, 2026-11-23 | [V] |
+| Officially supported versions are "1.1.X and 1.20+"; **1.16.100 is not listed**. Some server monitors list "1.1–1.26" | [Telegram channel][breadix-tg], [minemonitor][breadix-minemonitor] | [V] stated / [?] for 1.16.100 |
+| Owner reports playing there on 1.16.100 | Project owner | [B] — confirm in-game |
+| The community centres on **1.1.5 on mobile (touch)** | Telegram posts and settings showcases | [V] |
+| Breadix's own Windows download is a **cracked 1.1.5 build** ("Trial Bypass", sideloaded with a custom certificate). We must not rely on it | README inside `breadix.net/download/windows/mw10e.zip`, read via HTTP range request | [V] |
+| Breadix ships its **own official client, BreadixClient (Android)**. Users get a checkmark next to their name. Features: toggle sprint, CPS, ping, hit-distance display, DPI (joystick size), fog colour, dynamic-FOV toggle, no particles, no buttons, block highlight, "Touch Click" | [Telegram channel][breadix-tg] | [V] |
+
+**Rules that directly affect this project** ([rules][breadix-rules], permanent ban, no warning):
+
+- **2.1.4** — "Использование посторонних программ / лаунчеров / софта, упрощающих игру, ресурс паков / текстур паков и т.п."
+  ("Using third-party programs / launchers / software that make the game easier, resource packs / texture packs, etc.")
+  An injected client is third-party software. Read literally, **any** feature that makes play easier qualifies, and
+  resource packs are banned outright, which also rules out the resource-pack layer (method A).
+- **2.1.5** — "Игра с любых эмуляторов мобильного устройства, обход анти-геймпад системы … Вход с Minecraft: Windows 10 Edition разрешен."
+  ("Playing from any mobile-device emulator, or bypassing the anti-gamepad system… Logging in with Windows 10 Edition is allowed.")
+  Breadix runs an **anti-gamepad system**. What it does is **[?]**. Any controller feature that disguises gamepad input
+  as touch or keyboard would be "bypassing" it, so it is out of scope regardless of server.
+
+**Consequence:** unless Breadix explicitly permits it, using our client on Breadix risks a permanent ban under 2.1.4.
+This project will not attempt to hide the client from detection (that would be an anti-cheat bypass). The
+legitimate paths are written permission from Breadix administration, or retargeting to servers whose rules allow clients.
 
 ## 3. Platform options
 
@@ -127,7 +155,7 @@ Two candidate in-game rendering approaches, to be compared in the spike:
 
 | # | Risk | Severity | Mitigation |
 |---|---|---|---|
-| 1 | No servers to play on with 1.16.100 | **Critical** | Identify target servers/community first |
+| 1 | Target server (Breadix) bans third-party software and resource packs (rule 2.1.4) and runs an anti-gamepad system (2.1.5) | **Critical** | Seek written permission from Breadix, or retarget |
 | 2 | Xbox Live sign-in fails on a 2020 client | **Critical** | Test on day one of the spike |
 | 3 | 1.16.100 cannot be installed (MCLauncher post-GDK reliability, licensing) | High | Test on day one; document the install path |
 | 4 | Servers forbid injected clients regardless of features | Medium | Check target servers' rules |
@@ -159,3 +187,6 @@ analysis (e.g. of BDS binaries).
 [bnm-uwp]: https://bedrock-native-modding.github.io/wiki/platforms/uwp.html
 [mcpelauncher]: https://github.com/minecraft-linux/mcpelauncher-manifest
 [horion]: https://github.com/horionclient/Horion
+[breadix-tg]: https://t.me/s/breadixpe
+[breadix-rules]: https://breadix.net/rules/
+[breadix-minemonitor]: https://minemonitor.ru/server/breadixworld/
