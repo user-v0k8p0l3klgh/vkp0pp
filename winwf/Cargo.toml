@@ -1,0 +1,30 @@
+[package]
+name = "winwf"
+version = "1.0.0"
+edition = "2024"
+publish = false
+description = "Auto potion navigation for Minecraft Bedrock 1.16.100 with an Overhook on/off menu (Alt+G)"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+# exports test controls for tests/harness.c; never ship a build with this
+harness = []
+
+[dependencies]
+overhook = { git = "https://github.com/qcountel/overhook", rev = "722c43fdfddc1234d0c2bb286f831c19eb19bee8" }
+
+[dependencies.windows]
+version = "0.62"
+features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+]
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "unwind"
+strip = "symbols"
