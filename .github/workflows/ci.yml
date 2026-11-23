@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux:
+    name: Linux (unit tests, MinGW cross-build, Wine integration)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build \
+            g++-mingw-w64-x86-64-posix mingw-w64-x86-64-dev \
+            wine wine64 xvfb xauth libgl1-mesa-dri libglx-mesa0
+      - name: Unit tests (native, ASan + UBSan)
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBLL_SANITIZE=ON -DBLL_WERROR=ON
+          cmake --build build
+          ./build/bll_tests
+      - name: Cross-compile for Windows x64
+        run: |
+          cmake -S . -B build-win -G Ninja -DCMAKE_BUILD_TYPE=Release -DBLL_WERROR=ON \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64-x86_64.cmake
+          cmake --build build-win
+      - name: PE reader against the real DLL
+        run: BLL_TEST_PE=build-win/bll.dll ./build/bll_tests pe_
+      - name: Integration tests under Wine
+        run: python3 tests/integration/run_harness.py build-win --wine --keep it-logs
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wine-integration-logs
+          path: |
+            it-logs/*/bll.log
+            it-logs/*/harness.out
+          if-no-files-found: ignore
+      - name: Upload Windows binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedrock-low-latency-win64
+          path: |
+            build-win/bll.dll
+            build-win/bll-launcher.exe
+            build-win/bll-probe.exe
+
+  windows:
+    name: Windows (MSYS2 build, unit tests, real DXGI integration)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+      - name: Build
+        shell: msys2 {0}
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBLL_WERROR=ON
+          cmake --build build
+      - name: Unit tests
+        shell: msys2 {0}
+        run: ./build/bll_tests.exe
+      - name: Integration tests against the real DXGI runtime
+        shell: pwsh
+        run: python tests/integration/run_harness.py build --keep it-logs
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-integration-logs
+          path: |
+            it-logs/*/bll.log
+            it-logs/*/harness.out
+          if-no-files-found: ignore

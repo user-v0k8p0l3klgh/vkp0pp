@@ -1,0 +1,6 @@
+build/
+build-*/
+*.csv
+!tests/data/*.csv
+__pycache__/
+it-logs/
